@@ -2,3 +2,4 @@
 
 export(sample.su)
 export(shrinkdens)
+import(MCMCpack)

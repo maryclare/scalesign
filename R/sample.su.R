@@ -1,3 +1,4 @@
+#' @import MCMCpack
 getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
 
   length.key <- 10000
