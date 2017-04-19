@@ -1,6 +1,6 @@
 getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
 
-  length.key <- 10000
+  length.key <- 1000000
   if (fam == "power") {
     qs <- seq(0.1, 6, length.out = length.key)
     qstoks <- gamma(5/qs)*gamma(1/qs)/(gamma(3/qs)^2) - 3
@@ -18,6 +18,11 @@ getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
     qstoks <- (gamma(4/qs + 1) - 3*gamma(2/qs + 1)^2)/gamma(2/qs + 1)^2
     q <- qs[min(which(qstoks <= kappa))]
     lambda <- sqrt(sigma.sq.beta/gamma(2/q + 1))
+  } else if (fam == "dl") {
+    qs <- seq(0.001, 999999, length.out = length.key)
+    qstoks <- 3*((qs^2 + 9*qs + 12)/(qs*(qs + 1)))
+    q <- qs[min(which(qstoks <= kappa))]
+    lambda <- sigma.sq.beta
   }
   return(list("q" = q, "lambda" = lambda))
 }
@@ -54,6 +59,12 @@ shrinkdens <- function(x, sigma.sq.beta, kappa, fam = "power", pars = NULL, log.
       return((q/lambda)*(abs(x)/lambda)^(q - 1)*exp(-(abs(x)/lambda)^c)/2)
     } else {
       return((q - 1)*log(abs(x)) -(abs(x)/lambda)^q)
+    }
+  } else if (fam == "dl") {
+    if (!log.nocons) {
+      return((2^((1 + q)/2)*gamma(q))^(-1)*(sqrt(sigma.sq.beta))^((q - 1)/2)*abs(x/sqrt(sigma.sq.beta))^((q - 1)/2)*besselK(sqrt(2)*sqrt(sqrt(sigma.sq.beta))*sqrt(abs(x/sqrt(sigma.sq.beta))), 1 - q))
+    } else {
+      return(((q - 1)/2)*log(abs(x/sqrt(sigma.sq.beta))) + log(besselK(sqrt(2)*sqrt(sqrt(sigma.sq.beta))*sqrt(abs(x/sqrt(sigma.sq.beta))), 1 - q)))
     }
   }
 }
@@ -145,6 +156,9 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                       num.samp = 1000, print.iter = FALSE,
                       fam = "power", delta = 10^(-7)) {
 
+  if (fam == "dl" & kappa <= 3) {
+    cat("Values of excess kurtosis less than 3 cannot be represented by the DL prior.\n")
+  }
   pars <- getdenspars(sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam)
 
   XtX <- crossprod(X)
