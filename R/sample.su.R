@@ -1,6 +1,6 @@
 getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
 
-  length.key <- 1000000
+  length.key <- 10000000
   if (fam == "power") {
     qs <- seq(0.1, 6, length.out = length.key)
     qstoks <- gamma(5/qs)*gamma(1/qs)/(gamma(3/qs)^2) - 3
@@ -19,7 +19,7 @@ getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
     q <- qs[min(which(qstoks <= kappa))]
     lambda <- sqrt(sigma.sq.beta/gamma(2/q + 1))
   } else if (fam == "dl") {
-    qs <- seq(0.001, 999999, length.out = length.key)
+    qs <- exp(seq(log(0.000001), log(999999), length.out = length.key))
     qstoks <- 3*((qs^2 + 9*qs + 12)/(qs*(qs + 1)))
     q <- qs[min(which(qstoks <= kappa))]
     lambda <- sigma.sq.beta
