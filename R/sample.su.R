@@ -2,7 +2,7 @@ getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
 
   length.key <- 10000000
   if (fam == "power") {
-    qs <- seq(0.1, 6, length.out = length.key)
+    qs <- exp(seq(log(0.1), log(6), length.out = length.key))
     qstoks <- gamma(5/qs)*gamma(1/qs)/(gamma(3/qs)^2) - 3
     q <- qs[min(which(qstoks <= kappa))]
     lambda <- (sigma.sq.beta*gamma(1/q)/gamma(3/q))^(-q/2)
@@ -14,7 +14,7 @@ getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
     lambda <- sqrt(sigma.sq.beta*(2*q - 3))
   } else if (fam == "weibull") {
     # pdf is infinite at 0 when kappa > 3
-    qs <- seq(0.1, 10, length.out = length.key)
+    qs <- exp(seq(log(0.1), log(10), length.out = length.key))
     qstoks <- (gamma(4/qs + 1) - 3*gamma(2/qs + 1)^2)/gamma(2/qs + 1)^2
     q <- qs[min(which(qstoks <= kappa))]
     lambda <- sqrt(sigma.sq.beta/gamma(2/q + 1))
