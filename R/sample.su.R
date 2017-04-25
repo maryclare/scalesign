@@ -86,7 +86,7 @@ sample.u <- function(XtX, Xty, s, u, sigma.sq.z) {
 
 sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
                      sing.x = FALSE,
-                     epsilon = 0, fam = "power", pars = NULL) {
+                     epsilon = 0, fam = "power", pars = NULL, proposal = "marginal") {
 
   A <- XtX*(u%*%t(u))/sigma.sq.z
 
@@ -106,24 +106,33 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
   #   s <- m + rt.V%*%rnorm(length(m))
   # }
 
-  # Compute mean and variance of this distribution
-  alpha <- -m/sqrt(diag(V))
-  log.z <- pnorm(-alpha, log = TRUE)
-  alpha.z <- exp(dnorm(alpha, log = TRUE)- log.z)
-  mean <- (m + alpha.z*sqrt(diag(V)))
-  var <- diag(V)*(1 + alpha*alpha.z - (alpha.z)^2)
-
-  k <- (var/mean)
-  theta <- (mean/k)
-  s.new.inv <- rinvgamma(p, shape = theta, scale = 1/k)
-  s.new <- 1/s.new.inv
-
   acc <- rep(1, p)
   s <- s.old
 
   for (i in 1:p) {
 
-    s[i] <- s.new[i]
+    if (proposal == "marginal") {
+      mm <- m[i]
+      vv <- V[i, i]
+    } else if (proposal == "conditional") {
+      BB <- crossprod(solve(V[-i, -i]), V[i, -i])
+      mm <- m[i] + crossprod(BB, s[-i] - m[-i])
+      vv <- V[i, i] - crossprod(BB, V[i, -i])
+    }
+
+    # Compute mean and variance of this distribution
+    alpha <- -mm/sqrt(vv)
+    log.z <- pnorm(-alpha, log = TRUE)
+    alpha.z <- exp(dnorm(alpha, log = TRUE)- log.z)
+    mean <- (mm + alpha.z*sqrt(vv))
+    var <- vv*(1 + alpha*alpha.z - (alpha.z)^2)
+
+    k <- (var/mean)
+    theta <- (mean/k)
+    s.new.inv <- rinvgamma(1, shape = theta, scale = 1/k)
+    s.new <- 1/s.new.inv
+
+    s[i] <- s.new
     # prior.new <- ifelse(prior == "power", -(sqrt(sigma.sq.beta*gamma(1/q)/gamma(3/q)))^(-q)*sum(s^q),
     #                     ifelse(prior == "pearson", sum(-q*log(1 + (s/(sqrt(sigma.sq.beta)*sqrt(2*q - 3)))^2)),
     #                            ifelse(prior == "bessel",
@@ -154,7 +163,7 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
 sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                       epsilon = 0,
                       num.samp = 1000, print.iter = FALSE,
-                      fam = "power", delta = 10^(-7)) {
+                      fam = "power", delta = 10^(-7), proposal = "marginal") {
 
   if (fam == "dl" & kappa <= 3) {
     cat("Values of excess kurtosis less than 3 cannot be represented by the DL prior.\n")
@@ -183,7 +192,7 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                     s.old = samples.s[i - 1, ],
                     sing.x = sing.x,
                     epsilon = epsilon,
-                    fam = fam, pars = pars)
+                    fam = fam, pars = pars, proposal = proposal)
     samples.s[i, ] <- s.s$s
     acc[i, ] <- s.s$acc
     if (print.iter & max(s.s$acc) == 1) {cat("Accepted!\n")}
