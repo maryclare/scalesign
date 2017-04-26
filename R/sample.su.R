@@ -112,16 +112,11 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
 
   if (proposal == "joint") {
 
-    mvt.mom <- mtmvnorm(mean = as.vector(m), sigma = V, lower = rep(0, p), upper = rep(Inf, p))
-    mvt.mean <- mvt.mom$tmean
-    mvt.var <- (mvt.mom$tvar + t(mvt.mom$tvar))/2 # Divide by two because sometimes numerical assymetry arose
+    V.eig <- eigen(V)
+    V.inv <- V.eig$vectors[, V.eig$values > 0]%*%diag(1/V.eig$values[V.eig$values > 0])%*%t(V.eig$vectors[, V.eig$values > 0])
 
-    lmn.var <- log(mvt.var/(tcrossprod(mvt.mean)) + 1)
-    lmn.mean <- log(mvt.mean) - (1/2)*diag(lmn.var)
-    lmn.var.eig <- eigen(lmn.var)
-    lmn.var.rt <- lmn.var.eig$vectors[, lmn.var.eig$values > 0]%*%diag(sqrt(lmn.var.eig$values[lmn.var.eig$values > 0]))%*%t(lmn.var.eig$vectors[, lmn.var.eig$values > 0])
-
-    s <- exp(lmn.mean + lmn.var.rt%*%rnorm(p))
+    s <- rtmvnorm(1, mean = as.numeric(m), lower = rep(0, p), algorithm = "gibbs",
+                  H = V.inv)[1, ]
 
     lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
                                                                                               pars = pars, log.nocons = TRUE))
@@ -145,33 +140,15 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
         vv <- V[i, i]
       } else if (proposal == "conditional") {
         BB <- crossprod(solve(V[-i, -i]), V[i, -i])
-        mm <- m[i] + crossprod(BB, s[-i] - m[-i])
-        vv <- V[i, i] - crossprod(BB, V[i, -i])
+        mm <- as.numeric(m[i] + crossprod(BB, s[-i] - m[-i]))
+        vv <- as.numeric(V[i, i] - crossprod(BB, V[i, -i]))
       }
 
-      # Compute mean and variance of this distribution
-      alpha <- -mm/sqrt(vv)
-      log.z <- pnorm(-alpha, log = TRUE)
-      alpha.z <- exp(dnorm(alpha, log = TRUE)- log.z)
-      mean <- (mm + alpha.z*sqrt(vv))
-      var <- vv*(1 + alpha*alpha.z - (alpha.z)^2)
-
-      k <- (var/mean)
-      theta <- (mean/k)
-      s.new.inv <- rinvgamma(1, shape = theta, scale = 1/k)
-      s.new <- 1/s.new.inv
+      s.new <- rtmvnorm(1, mean = mm, lower = 0, algorithm = "gibbs",
+                        H = 1/matrix(vv, nrow = 1, ncol = 1))
 
       s[i] <- s.new
-      # prior.new <- ifelse(prior == "power", -(sqrt(sigma.sq.beta*gamma(1/q)/gamma(3/q)))^(-q)*sum(s^q),
-      #                     ifelse(prior == "pearson", sum(-q*log(1 + (s/(sqrt(sigma.sq.beta)*sqrt(2*q - 3)))^2)),
-      #                            ifelse(prior == "bessel",
-      #                                   sum(q*log(s) + log(besselK(sqrt(1 + q)*s/sqrt(sigma.sq.beta), q))), NA)))
-      # prior.old <- ifelse(prior == "power", -(sqrt(sigma.sq.beta*gamma(1/q)/gamma(3/q)))^(-q)*sum(s.old^q),
-      #                     ifelse(prior == "pearson",
-      #                            sum(-q*log(1 + (s.old/(sqrt(sigma.sq.beta)*sqrt(2*q - 3)))^2)),
-      #                          ifelse(prior == "bessel",
-      #                                 sum(q*log(s.old) + log(besselK(sqrt(1 + q)*s.old/sqrt(sigma.sq.beta), q))),
-      #                                 NA)))
+
       lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
                                                                                                 pars = pars, log.nocons = TRUE))
       lik.old <- -(1/2)*(crossprod(t(crossprod(s.old, A)), s.old) - 2*crossprod(s.old, b)) + sum(shrinkdens(s.old, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
@@ -195,7 +172,9 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                       num.samp = 1000, print.iter = FALSE,
                       fam = "power", delta = 10^(-7), proposal = "marginal") {
 
-  library(tmvtnorm)
+  if(proposal == "joint") {
+    library(tmvtnorm)
+  }
 
   if (fam == "dl" & kappa <= 3) {
     cat("Values of excess kurtosis less than 3 cannot be represented by the DL prior.\n")
