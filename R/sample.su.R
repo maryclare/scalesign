@@ -172,9 +172,8 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                       num.samp = 1000, print.iter = FALSE,
                       fam = "power", delta = 10^(-7), proposal = "marginal") {
 
-  if(proposal == "joint") {
-    library(tmvtnorm)
-  }
+  library(tmvtnorm)
+
 
   if (fam == "dl" & kappa <= 3) {
     cat("Values of excess kurtosis less than 3 cannot be represented by the DL prior.\n")
