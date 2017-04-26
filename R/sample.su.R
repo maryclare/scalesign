@@ -114,9 +114,12 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
 
     V.eig <- eigen(V)
     V.inv <- V.eig$vectors[, V.eig$values > 0]%*%diag(1/V.eig$values[V.eig$values > 0])%*%t(V.eig$vectors[, V.eig$values > 0])
-
     s <- rtmvnorm(1, mean = as.numeric(m), lower = rep(0, p), algorithm = "gibbs",
                   H = V.inv)[1, ]
+    while(sum(is.infinite(s) | is.na(s)) > 0) {
+      s <- rtmvnorm(1, mean = as.numeric(m), lower = rep(0, p), algorithm = "gibbs",
+                        H = V.inv, start.value = abs(m))[1, ]
+    }
 
     lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
                                                                                               pars = pars, log.nocons = TRUE))
@@ -146,7 +149,10 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
 
       s.new <- rtmvnorm(1, mean = mm, lower = 0, algorithm = "gibbs",
                         H = 1/matrix(vv, nrow = 1, ncol = 1))
-
+      while(is.infinite(s.new)) {
+        s.new <- rtmvnorm(1, mean = mm, lower = 0, algorithm = "gibbs",
+                          H = 1/matrix(vv, nrow = 1, ncol = 1))
+      }
       s[i] <- s.new
 
       lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
