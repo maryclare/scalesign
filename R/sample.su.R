@@ -114,11 +114,10 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
 
     mvt.mom <- mtmvnorm(mean = as.vector(m), sigma = V, lower = rep(0, p), upper = rep(Inf, p))
     mvt.mean <- mvt.mom$tmean
-    mvt.var <- mvt.mom$tvar
+    mvt.var <- (mvt.mom$tvar + t(mvt.mom$tvar))/2 # Divide by two because sometimes numerical assymetry arose
 
     lmn.var <- log(mvt.var/(tcrossprod(mvt.mean)) + 1)
     lmn.mean <- log(mvt.mean) - (1/2)*diag(lmn.var)
-
     lmn.var.eig <- eigen(lmn.var)
     lmn.var.rt <- lmn.var.eig$vectors[, lmn.var.eig$values > 0]%*%diag(sqrt(lmn.var.eig$values[lmn.var.eig$values > 0]))%*%t(lmn.var.eig$vectors[, lmn.var.eig$values > 0])
 
