@@ -119,7 +119,10 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
     lmn.var <- log(mvt.var/(tcrossprod(mvt.mean)) + 1)
     lmn.mean <- log(mvt.mean) - (1/2)*diag(lmn.var)
 
-    s <- exp(lmn.mean + t(chol(lmn.var))%*%rnorm(p))
+    lmn.var.eig <- eigen(lmn.var)
+    lmn.var.rt <- lmn.var.eig$vectors[, lmn.var.eig$values > 0]%*%diag(sqrt(lmn.var.eig$values[lmn.var.eig$values > 0]))%*%t(lmn.var.eig$vectors[, lmn.var.eig$values > 0])
+
+    s <- exp(lmn.mean + lmn.var.rt%*%rnorm(p))
 
     lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
                                                                                               pars = pars, log.nocons = TRUE))
