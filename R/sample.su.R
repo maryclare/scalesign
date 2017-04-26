@@ -64,7 +64,7 @@ shrinkdens <- function(x, sigma.sq.beta, kappa, fam = "power", pars = NULL, log.
   } else if (fam == "dl") {
     alpha <- sqrt(1/(2^3*q*(q + 1)))*sqrt(lambda)
     if (!log.nocons) {
-      return((2^((1 + q)/2)*gamma(q))^(-1)*abs(x/alpha)^((q - 1)/2)*besselK(sqrt(2)*sqrt(abs(x/alpha)), 1 - q))/alpha
+      return((2^((1 + q)/2)*gamma(q))^(-1)*abs(x/alpha)^((q - 1)/2)*besselK(sqrt(2)*sqrt(abs(x/alpha)), 1 - q)/alpha)
     } else {
       return((q - 1)/2)*log(abs(x)) + log(besselK(sqrt(2)*sqrt(abs(x/alpha), 1 - q)))
     }
