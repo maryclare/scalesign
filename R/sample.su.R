@@ -1,3 +1,4 @@
+#' @export
 getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
 
   length.key <- 10000000
@@ -61,10 +62,11 @@ shrinkdens <- function(x, sigma.sq.beta, kappa, fam = "power", pars = NULL, log.
       return((q - 1)*log(abs(x)) -(abs(x)/lambda)^q)
     }
   } else if (fam == "dl") {
+    alpha <- sqrt(1/(2^3*q*(q + 1)))*sqrt(sigma.sq.beta)
     if (!log.nocons) {
-      return((2^((1 + q)/2)*gamma(q))^(-1)*(sqrt(sigma.sq.beta))^((q - 1)/2)*abs(x/sqrt(sigma.sq.beta))^((q - 1)/2)*besselK(sqrt(2)*sqrt(sqrt(sigma.sq.beta))*sqrt(abs(x/sqrt(sigma.sq.beta))), 1 - q))
+      return((2^((1 + q)/2)*gamma(q))^(-1)*abs(x/alpha)^((q - 1)/2)*besselK(sqrt(2)*sqrt(abs(x/alpha)), 1 - q))/alpha
     } else {
-      return(((q - 1)/2)*log(abs(x/sqrt(sigma.sq.beta))) + log(besselK(sqrt(2)*sqrt(sqrt(sigma.sq.beta))*sqrt(abs(x/sqrt(sigma.sq.beta))), 1 - q)))
+      return((q - 1)/2)*log(abs(x)) + log(besselK(sqrt(2)*sqrt(abs(x/alpha), 1 - q)))
     }
   }
 }
@@ -118,8 +120,9 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
                   H = V.inv)[1, ]
     while(sum(is.infinite(s) | is.na(s)) > 0) {
       s <- rtmvnorm(1, mean = as.numeric(m), lower = rep(0, p), algorithm = "gibbs",
-                        H = V.inv, start.value = abs(m))[1, ]
+                        H = V.inv, start.value = abs(m)/2)[1, ]
     }
+
 
     lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
                                                                                               pars = pars, log.nocons = TRUE))
