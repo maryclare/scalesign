@@ -88,11 +88,11 @@ sample.u <- function(XtX, Xty, s, u, sigma.sq.z) {
 
 sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
                      sing.x = FALSE,
-                     epsilon = 0, fam = "power", pars = NULL, proposal = "marginal") {
+                     epsilon = 0, fam = "power", pars = NULL, proposal = "marginal", delta = 0) {
 
   A <- XtX*(u%*%t(u))/sigma.sq.z
 
-  b <- Xty*u/sigma.sq.z
+  b <- (Xty*u/sigma.sq.z)
 
   e.A <- eigen(A)
 
@@ -150,13 +150,25 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
         vv <- as.numeric(V[i, i] - crossprod(BB, V[i, -i]))
       }
 
-      s.new <- rtmvnorm(1, mean = mm, lower = 0, algorithm = "gibbs",
-                        H = 1/matrix(vv, nrow = 1, ncol = 1))
+      s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs")
       while(is.infinite(s.new)) {
-        s.new <- rtmvnorm(1, mean = mm, lower = 0, algorithm = "gibbs",
-                          H = 1/matrix(vv, nrow = 1, ncol = 1))
+        s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs")
       }
-      s[i] <- s.new
+      # Get extra samples from prior for densities with infinite p(|x|) at x = 0
+      extra.zero <- rbinom(1, 1, delta[i])
+      if ((fam == "bessel" | fam == "dl") & extra.zero > 0) {
+        p.samp <- -1
+        while (p.samp < 0) {
+          if (fam == "bessel") {
+            p.samp <- sqrt(sigma.sq.beta)*sqrt(2/(pars[["q"]] + 1/2))*sqrt(rgamma(1, pars[["q"]] + 1/2, 2))*rnorm(1)
+          } else if (fam == "dl") {
+            p.samp <- sqrt(sigma.sq.beta)*(1/2)*rexp(1, 1)*(-1)^rbinom(1, 1, 0.5)*rgamma(1, shape = pars[["q"]], rate = 1/2)
+          }
+        }
+      } else {
+        p.samp <- 0
+      }
+      s[i] <- s.new*(1 - extra.zero) + (extra.zero)*p.samp
 
       lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
                                                                                                 pars = pars, log.nocons = TRUE))
@@ -164,7 +176,6 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
                                                                                                             pars = pars, log.nocons = TRUE))
 
       diff <- exp(lik.new - lik.old)[1, 1]
-
       if (diff < 1 & runif(1, 0, 1) > diff) {
         s[i] <- s.old[i]
         acc[i] <- 0
@@ -179,7 +190,7 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
 sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                       epsilon = 0,
                       num.samp = 1000, print.iter = FALSE,
-                      fam = "power", delta = 10^(-7), proposal = "marginal") {
+                      fam = "power", delta = 0, proposal = "marginal") {
 
   library(tmvtnorm)
 
@@ -193,7 +204,7 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
   Xty <- crossprod(X, y)
   sing.x <- min(eigen(XtX)$values) <= 0
 
-  ridge.est <- solve(XtX + delta*diag(ncol(X)))%*%(Xty)
+  ridge.est <- solve(XtX + 10^(-1)*diag(ncol(X)))%*%(Xty)
   u <- sign(ridge.est)
   s <- abs(ridge.est)
 
@@ -211,7 +222,7 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                     s.old = samples.s[i - 1, ],
                     sing.x = sing.x,
                     epsilon = epsilon,
-                    fam = fam, pars = pars, proposal = proposal)
+                    fam = fam, pars = pars, proposal = proposal, delta = delta)
     samples.s[i, ] <- s.s$s
     acc[i, ] <- s.s$acc
     if (print.iter & max(s.s$acc) == 1) {cat("Accepted!\n")}
