@@ -88,11 +88,11 @@ sample.u <- function(XtX, Xty, s, u, sigma.sq.z) {
 
 sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
                      sing.x = FALSE,
-                     epsilon = 0, fam = "power", pars = NULL, proposal = "marginal", delta = 0) {
+                     epsilon = 0, fam = "power", pars = NULL, proposal = "marginal", delta = 0, mean.adj = 0) {
 
   A <- XtX*(u%*%t(u))/sigma.sq.z
 
-  b <- (Xty*u/sigma.sq.z)
+  b <- (Xty*u/sigma.sq.z) - mean.adj
 
   e.A <- eigen(A)
 
@@ -190,7 +190,7 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
 sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                       epsilon = 0,
                       num.samp = 1000, print.iter = FALSE,
-                      fam = "power", delta = 0, proposal = "marginal") {
+                      fam = "power", delta = 0, proposal = "marginal", kl.tweak = FALSE) {
 
   library(tmvtnorm)
 
@@ -199,6 +199,13 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
     cat("Values of excess kurtosis less than 3 cannot be represented by the DL prior.\n")
   }
   pars <- getdenspars(sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam)
+  pars.pow <- getdenspars(sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = "power") # Can use to adjust sampler
+
+  if (kl.tweak) {
+    q.mommatch <- pars.pow[["q"]]
+    mean.adj <- sqrt(gamma(1/q.mommatch)*gamma(3/q.mommatch)/(gamma(2/q.mommatch)^2))/sqrt(sigma.sq.beta)
+    print(mean.adj)
+  } else {mean.adj = 0}
 
   XtX <- crossprod(X)
   Xty <- crossprod(X, y)
@@ -222,7 +229,7 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                     s.old = samples.s[i - 1, ],
                     sing.x = sing.x,
                     epsilon = epsilon,
-                    fam = fam, pars = pars, proposal = proposal, delta = delta)
+                    fam = fam, pars = pars, proposal = proposal, delta = delta, mean.adj = mean.adj)
     samples.s[i, ] <- s.s$s
     acc[i, ] <- s.s$acc
     if (print.iter & max(s.s$acc) == 1) {cat("Accepted!\n")}
