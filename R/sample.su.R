@@ -90,20 +90,100 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
                      sing.x = FALSE,
                      epsilon = 0, fam = "power", pars = NULL, proposal = "marginal", delta = 0, mean.adj = 0) {
 
-  A <- sigma.sq.beta*XtX*(u%*%t(u))/sigma.sq.z^2
-  b <- sqrt(sigma.sq.beta)*Xty*u/sigma.sq.z^2
+  A <- XtX*(u%*%t(u))/sigma.sq.z
 
-  V <- solve(A)
-  m <- as.vector(V%*%b)
-  q <- pars[["q"]]
+  b <- (Xty*u/sigma.sq.z) - mean.adj
 
-  dat <- list(p = p, m = m, V = V, q = q)
+  e.A <- eigen(A)
 
-  fit <- stan(file = '~/Dropbox/Stan/SS_Example/ss_model.stan', data = dat, warmup = 500,
-              iter = 501, chains = 1, control = list(adapt_delta = 0.8,max_treedepth = 10))
-  s <- extract(fit, permuted = TRUE)$s[1, ]
+  V <- solve(A + epsilon*diag(ncol(A)))
+  m <- V%*%b
 
-  return(list("s" = s, "acc" = numeric(p)))
+  # e.V <- eigen(V)
+  # rt.V <- e.V$vectors[, e.V$values > 0]%*%diag(sqrt(e.V$values[e.V$values > 0]))%*%t(e.V$vectors[, e.V$values > 0])
+  #
+  # s <- rep(-1, length(m))
+  #
+  # while(min(s) < 0) {
+  #   s <- m + rt.V%*%rnorm(length(m))
+  # }
+
+  acc <- rep(1, p)
+  s <- s.old
+
+
+  if (proposal == "joint") {
+
+    V.eig <- eigen(V)
+    V.inv <- V.eig$vectors[, V.eig$values > 0]%*%diag(1/V.eig$values[V.eig$values > 0])%*%t(V.eig$vectors[, V.eig$values > 0])
+    s <- rtmvnorm(1, mean = as.numeric(m), lower = rep(0, p), algorithm = "gibbs",
+                  H = V.inv)[1, ]
+    while(sum(is.infinite(s) | is.na(s)) > 0) {
+      s <- rtmvnorm(1, mean = as.numeric(m), lower = rep(0, p), algorithm = "gibbs",
+                    H = V.inv, start.value = abs(m)/2)[1, ]
+    }
+
+
+    lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
+                                                                                              pars = pars, log.nocons = TRUE))
+    lik.old <- -(1/2)*(crossprod(t(crossprod(s.old, A)), s.old) - 2*crossprod(s.old, b)) + sum(shrinkdens(s.old, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
+                                                                                                          pars = pars, log.nocons = TRUE))
+
+    diff <- exp(lik.new - lik.old)[1, 1]
+
+    if (diff < 1 & runif(1, 0, 1) > diff) {
+      s <- s.old
+      acc <- rep(0, p)
+    }
+
+
+  } else if (proposal == "marginal" | proposal == "conditional") {
+
+    for (i in 1:p) {
+
+      if (proposal == "marginal") {
+        mm <- m[i]
+        vv <- V[i, i]
+      } else if (proposal == "conditional") {
+        BB <- crossprod(solve(V[-i, -i]), V[i, -i])
+        mm <- as.numeric(m[i] + crossprod(BB, s[-i] - m[-i]))
+        vv <- as.numeric(V[i, i] - crossprod(BB, V[i, -i]))
+      }
+
+      s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs")
+      while(is.infinite(s.new)) {
+        s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs")
+      }
+      # Get extra samples from prior for densities with infinite p(|x|) at x = 0
+      extra.zero <- rbinom(1, 1, delta[i])
+      if ((fam == "bessel" | fam == "dl") & extra.zero > 0) {
+        p.samp <- -1
+        while (p.samp < 0) {
+          if (fam == "bessel") {
+            p.samp <- sqrt(sigma.sq.beta)*sqrt(2/(pars[["q"]] + 1/2))*sqrt(rgamma(1, pars[["q"]] + 1/2, 2))*rnorm(1)
+          } else if (fam == "dl") {
+            p.samp <- sqrt(sigma.sq.beta)*(1/2)*rexp(1, 1)*(-1)^rbinom(1, 1, 0.5)*rgamma(1, shape = pars[["q"]], rate = 1/2)
+          }
+        }
+      } else {
+        p.samp <- 0
+      }
+      s[i] <- s.new*(1 - extra.zero) + (extra.zero)*p.samp
+
+      lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
+                                                                                                pars = pars, log.nocons = TRUE))
+      lik.old <- -(1/2)*(crossprod(t(crossprod(s.old, A)), s.old) - 2*crossprod(s.old, b)) + sum(shrinkdens(s.old, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
+                                                                                                            pars = pars, log.nocons = TRUE))
+
+      diff <- exp(lik.new - lik.old)[1, 1]
+      if (diff < 1 & runif(1, 0, 1) > diff) {
+        s[i] <- s.old[i]
+        acc[i] <- 0
+      }
+    }
+  }
+
+  return(list("s" = s, "acc" = acc))
 }
 
 #' @export
