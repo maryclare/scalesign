@@ -149,18 +149,15 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
         vv <- as.numeric(V[i, i] - crossprod(BB, V[i, -i]))
       }
 
+      burn.in <- 1000
       s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs",
-                        burn.in.samples = 1000)
-      # while(is.infinite(s.new)) {
-      #   s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs",
-      #                     start.value =  0)
-      # }
-      # Get extra samples from prior for densities with infinite p(|x|) at x = 0
-      if (is.infinite(s.new)) {
-        s[i] <- s.old[i]
-        acc[i] <- 0
-      } else {
-        extra.zero <- rbinom(1, 1, delta[i])
+                        burn.in.samples = burn.in)
+      while(is.infinite(s.new)) {
+        burn.in <- burn.in*1.1
+        s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs",
+                          start.value =  0, burn.in.samples = burn.in)
+      }
+      extra.zero <- rbinom(1, 1, delta[i])
         if ((fam == "bessel" | fam == "dl") & extra.zero > 0) {
           p.samp <- -1
           while (p.samp < 0) {
@@ -186,7 +183,6 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
           acc[i] <- 0
         }
       }
-    }
   }
 
   return(list("s" = s, "acc" = acc))
@@ -235,7 +231,7 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                     s.old = samples.s[i - 1, ],
                     sing.x = sing.x,
                     epsilon = epsilon,
-                    fam = fam, pars = pars, proposal = proposal, delta = delta, 
+                    fam = fam, pars = pars, proposal = proposal, delta = delta,
                     mean.adj = mean.adj)
     samples.s[i, ] <- s.s$s
     acc[i, ] <- s.s$acc
