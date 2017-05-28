@@ -140,7 +140,6 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
   } else if (proposal == "marginal" | proposal == "conditional") {
 
     for (i in 1:p) {
-
       if (proposal == "marginal") {
         mm <- m[i]
         vv <- V[i, i]
@@ -150,35 +149,42 @@ sample.s <- function(XtX, Xty, u, sigma.sq.z, sigma.sq.beta, kappa = 3, s.old,
         vv <- as.numeric(V[i, i] - crossprod(BB, V[i, -i]))
       }
 
-      s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs")
-      while(is.infinite(s.new)) {
-        s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs")
-      }
+      s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs",
+                        burn.in.samples = 1000)
+      # while(is.infinite(s.new)) {
+      #   s.new <- rtmvnorm(1, mean = mm, sigma = vv, lower = 0, algorithm = "gibbs",
+      #                     start.value =  0)
+      # }
       # Get extra samples from prior for densities with infinite p(|x|) at x = 0
-      extra.zero <- rbinom(1, 1, delta[i])
-      if ((fam == "bessel" | fam == "dl") & extra.zero > 0) {
-        p.samp <- -1
-        while (p.samp < 0) {
-          if (fam == "bessel") {
-            p.samp <- sqrt(sigma.sq.beta)*sqrt(2/(pars[["q"]] + 1/2))*sqrt(rgamma(1, pars[["q"]] + 1/2, 2))*rnorm(1)
-          } else if (fam == "dl") {
-            p.samp <- sqrt(sigma.sq.beta)*(1/2)*rexp(1, 1)*(-1)^rbinom(1, 1, 0.5)*rgamma(1, shape = pars[["q"]], rate = 1/2)
-          }
-        }
-      } else {
-        p.samp <- 0
-      }
-      s[i] <- s.new*(1 - extra.zero) + (extra.zero)*p.samp
-
-      lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
-                                                                                                pars = pars, log.nocons = TRUE))
-      lik.old <- -(1/2)*(crossprod(t(crossprod(s.old, A)), s.old) - 2*crossprod(s.old, b)) + sum(shrinkdens(s.old, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
-                                                                                                            pars = pars, log.nocons = TRUE))
-
-      diff <- exp(lik.new - lik.old)[1, 1]
-      if (diff < 1 & runif(1, 0, 1) > diff) {
+      if (is.infinite(s.new)) {
         s[i] <- s.old[i]
         acc[i] <- 0
+      } else {
+        extra.zero <- rbinom(1, 1, delta[i])
+        if ((fam == "bessel" | fam == "dl") & extra.zero > 0) {
+          p.samp <- -1
+          while (p.samp < 0) {
+            if (fam == "bessel") {
+              p.samp <- sqrt(sigma.sq.beta)*sqrt(2/(pars[["q"]] + 1/2))*sqrt(rgamma(1, pars[["q"]] + 1/2, 2))*rnorm(1)
+            } else if (fam == "dl") {
+              p.samp <- sqrt(sigma.sq.beta)*(1/2)*rexp(1, 1)*(-1)^rbinom(1, 1, 0.5)*rgamma(1, shape = pars[["q"]], rate = 1/2)
+            }
+          }
+        } else {
+          p.samp <- 0
+        }
+        s[i] <- s.new*(1 - extra.zero) + (extra.zero)*p.samp
+
+        lik.new <- -(1/2)*(crossprod(t(crossprod(s, A)), s) - 2*crossprod(s, b)) + sum(shrinkdens(s, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
+                                                                                                pars = pars, log.nocons = TRUE))
+        lik.old <- -(1/2)*(crossprod(t(crossprod(s.old, A)), s.old) - 2*crossprod(s.old, b)) + sum(shrinkdens(s.old, sigma.sq.beta = sigma.sq.beta, kappa = kappa, fam = fam,
+                                                                                                            pars = pars, log.nocons = TRUE))
+
+        diff <- exp(lik.new - lik.old)[1, 1]
+        if (diff < 1 & runif(1, 0, 1) > diff) {
+          s[i] <- s.old[i]
+          acc[i] <- 0
+        }
       }
     }
   }
@@ -229,7 +235,8 @@ sample.su <- function(X, y, sigma.sq.z, sigma.sq.beta, kappa = 3,
                     s.old = samples.s[i - 1, ],
                     sing.x = sing.x,
                     epsilon = epsilon,
-                    fam = fam, pars = pars, proposal = proposal, delta = delta, mean.adj = mean.adj)
+                    fam = fam, pars = pars, proposal = proposal, delta = delta, 
+                    mean.adj = mean.adj)
     samples.s[i, ] <- s.s$s
     acc[i, ] <- s.s$acc
     if (print.iter & max(s.s$acc) == 1) {cat("Accepted!\n")}
