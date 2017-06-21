@@ -1,11 +1,33 @@
+fq <- function(q, kurt) {
+  gamma(5/q)*gamma(1/q)/(gamma(3/q)^2) - kurt
+}
+
+fpq <- function(q) {
+  (gamma(5/q)*gamma(1/q)/(q^2*gamma(3/q)^2))*(6*digamma(3/q) - digamma(1/q) - 5*digamma(5/q))
+}
+
+# Use Newton's method: https://en.wikipedia.org/wiki/Newton%27s_method
+nrq <- function(kurt, sval = 0.032, tol = 10^(-12)) { # This starting value is the lowest possible
+  if (kurt < 6) {
+    sval <- 1
+  } else if (kurt < 3) {
+    sval <- 2
+  }
+  x.old <- Inf
+  x.new <- sval
+  while (abs(x.new - x.old) > tol) {
+    x.old <- x.new
+    x.new <- x.old - fq(x.old, kurt)/fpq(x.old)
+  }
+  return(x.new)
+}
+
 #' @export
 getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
 
   length.key <- 10000000
   if (fam == "power") {
-    qs <- exp(seq(log(0.1), log(6), length.out = length.key))
-    qstoks <- gamma(5/qs)*gamma(1/qs)/(gamma(3/qs)^2) - 3
-    q <- qs[min(which(qstoks <= kappa))]
+    q <- nrq(kappa)
     lambda <- (sigma.sq.beta*gamma(1/q)/gamma(3/q))^(-q/2)
   } else if (fam == "bessel") {
     q <- (6/kappa - 1)/2
