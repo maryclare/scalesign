@@ -27,7 +27,7 @@ getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
 
   length.key <- 10000000
   if (fam == "power") {
-    q <- nrq(kappa - 3)
+    q <- nrq(kappa + 3)
     lambda <- (sigma.sq.beta*gamma(1/q)/gamma(3/q))^(-q/2)
   } else if (fam == "bessel") {
     q <- (6/kappa - 1)/2
