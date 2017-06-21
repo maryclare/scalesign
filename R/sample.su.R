@@ -6,7 +6,7 @@ fpq <- function(q) {
   (gamma(5/q)*gamma(1/q)/(q^2*gamma(3/q)^2))*(6*digamma(3/q) - digamma(1/q) - 5*digamma(5/q))
 }
 
-# Use Newton's method: https://en.wikipedia.org/wiki/Newton%27s_method
+# Use Newton's method to map q to kurtosis: https://en.wikipedia.org/wiki/Newton%27s_method
 nrq <- function(kurt, sval = 0.032, tol = 10^(-12)) { # This starting value is the lowest possible
   if (kurt < 6) {
     sval <- 1
@@ -27,7 +27,7 @@ getdenspars <- function(sigma.sq.beta, kappa, fam = "power") {
 
   length.key <- 10000000
   if (fam == "power") {
-    q <- nrq(kappa)
+    q <- nrq(kappa - 3)
     lambda <- (sigma.sq.beta*gamma(1/q)/gamma(3/q))^(-q/2)
   } else if (fam == "bessel") {
     q <- (6/kappa - 1)/2
